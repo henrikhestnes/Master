@@ -1,1 +1,1 @@
-## Repository for work done during my master thesis
+Repository for work done during my master thesis
