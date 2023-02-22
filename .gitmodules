@@ -1,0 +1,6 @@
+[submodule "FFNN"]
+	path = FFNN
+	url = git@github.com:henrikhestnes/NN-predict-temperature-of-house.git
+[submodule "ThermoPBM"]
+	path = ThermoPBM
+	url = git@github.com:henrikhestnes/ThermoPBM.git
