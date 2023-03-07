@@ -84,14 +84,13 @@ def train(
             cost = batch_mse + l2_reg * reg_loss
             cost.backward()
             optimizer.step()
-        print(f'Epoch: {epoch}, Test loss: {cost.item()}')
+        print(f'Epoch: {epoch+1}, Test loss: {cost.item()}')
 
-        if epoch % 10 == 0:
-            mse_val = 0
-            for inputs, label in val_data:
-                pred = (net(inputs))
-                mse_val += torch.sum(torch.pow(label-pred, 2))
-            print(label.shape)
-            mse_val /= (len(val_data)*label.shape[0]*label.shape[1]*label.shape[2])
-            print(f'Epoch: {epoch+1}: Val MSE: {mse_val}')
+        # if epoch % 10 == 0:
+        mse_val = 0
+        for inputs, label in val_data:
+            pred = (net(inputs))
+            mse_val += torch.sum(torch.pow(label-pred, 2))
+        mse_val /= (len(val_data)*label.shape[0]*label.shape[1]*label.shape[2])
+        print(f'Epoch: {epoch+1}: Val MSE: {mse_val}')
     return net

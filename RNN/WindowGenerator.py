@@ -30,8 +30,6 @@ class WindowGenerator(Dataset):
     def __len__(self):
         return len(self.data)
 
-    def __si
-
     def __repr__(self):
         return '\n'.join([
             f'Window sizes: {self.total_window_size}',
