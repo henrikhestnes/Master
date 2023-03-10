@@ -1,3 +1,4 @@
+import copy
 import numpy as np
 import torch
 from torch import nn
@@ -47,50 +48,68 @@ class Net(nn.Module):
 
     def forward(self, input_seq):
         # print(f'input_seq:{input_seq.size()}')
+        torch.autograd.set_detect_anomaly(True)
         h_0 = Variable(torch.zeros(self.num_lstm_layers, input_seq.size(0), self.hidden_size)).requires_grad_() #hidden state
         c_0 = Variable(torch.zeros(self.num_lstm_layers, input_seq.size(0), self.hidden_size)).requires_grad_() #internal state
         output, (hn, cn) = self.lstm(input_seq, (h_0, c_0))
         # print(f'hn: {hn.size()}')
 
         x = hn[-1]#.view(-1, self.hidden_size)
+        # print(x.shape)
         for layer in self.linear_layers:
             x = self.act(x)
             x = layer(x)
         # print(x.shape)
-        return x.reshape((len(input_seq), *self.output_shape))
+        return x.reshape((input_seq.size(0), *self.output_shape))
 
-def train(
-        net: torch.nn.Module,
-        train_data: DataLoader,
-        val_data: DataLoader,
-        n_epochs: int,
-        lr: float,
-        l2_reg: float,
-) -> torch.nn.Module:
-    criterion = torch.nn.MSELoss()
-    optimizer = torch.optim.Adam(net.parameters(), lr = lr)
-    net.train()
+    def train(
+            self,
+            train_data: DataLoader,
+            val_data: DataLoader,
+            n_epochs: int,
+            lr: float,
+            l2_reg: float,
+    ) -> torch.nn.Module:
+        criterion = torch.nn.MSELoss()
+        optimizer = torch.optim.Adam(self.parameters(), lr = lr)
 
-    for epoch in range(n_epochs):
-        for inputs, targets in train_data:
-            optimizer.zero_grad()
-            outputs = net(inputs)
-            # print(outputs.shape)
-            # print(targets.shape)
-            batch_mse = criterion(outputs, targets)
-            reg_loss = 0
-            for param in net.parameters():
-                    reg_loss += param.abs().sum()
-            cost = batch_mse + l2_reg * reg_loss
-            cost.backward()
-            optimizer.step()
-        print(f'Epoch: {epoch+1}, Test loss: {cost.item()}')
+        best_mse = np.inf
+        patience = 5
+        i_since_last_update = 0
 
-        # if epoch % 10 == 0:
-        mse_val = 0
-        for inputs, label in val_data:
-            pred = (net(inputs))
-            mse_val += torch.sum(torch.pow(label-pred, 2))
-        mse_val /= (len(val_data)*label.shape[0]*label.shape[1]*label.shape[2])
-        print(f'Epoch: {epoch+1}: Val MSE: {mse_val}')
-    return net
+        for epoch in range(n_epochs):
+            for inputs, targets in train_data:
+                optimizer.zero_grad()
+                outputs = self(inputs)
+                # print(outputs.shape)
+                # print(targets.shape)
+                batch_mse = criterion(outputs, targets)
+                reg_loss = 0
+                for param in self.parameters():
+                        reg_loss += param.abs().sum()
+                cost = batch_mse + l2_reg * reg_loss
+                cost.backward()
+                optimizer.step()
+            print(f'Epoch: {epoch+1}, Test loss: {cost.item()}')
+
+            # if epoch % 10 == 0:
+            mse_val = 0
+            for inputs, label in val_data:
+                pred = (self(inputs))
+                mse_val += torch.sum(torch.pow(label-pred, 2))
+            mse_val /= (len(val_data.dataset)*label.shape[2])
+            print(f'Epoch: {epoch+1}: Val MSE: {mse_val}')
+
+            #Early stopping
+            if mse_val < best_mse:
+                best_weights = copy.deepcopy(self.state_dict())
+                i_since_last_update = 0
+                best_mse = mse_val
+            else:
+                i_since_last_update += 1
+
+            if i_since_last_update > patience:
+                print(f"Stopping early with mse={best_mse}")
+                break
+        print("updating weights")
+        self.load_state_dict(best_weights)
