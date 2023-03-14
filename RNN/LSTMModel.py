@@ -81,8 +81,7 @@ class Net(nn.Module):
             for inputs, targets in train_data:
                 optimizer.zero_grad()
                 outputs = self(inputs)
-                # print(outputs.shape)
-                # print(targets.shape)
+
                 batch_mse = criterion(outputs, targets)
                 reg_loss = 0
                 for param in self.parameters():
@@ -92,10 +91,9 @@ class Net(nn.Module):
                 optimizer.step()
             print(f'Epoch: {epoch+1}, Test loss: {cost.item()}')
 
-            # if epoch % 10 == 0:
             mse_val = 0
             for inputs, label in val_data:
-                pred = (self(inputs))
+                pred = self(inputs)
                 mse_val += torch.sum(torch.pow(label-pred, 2))
             mse_val /= (len(val_data.dataset)*label.shape[2])
             print(f'Epoch: {epoch+1}: Val MSE: {mse_val}')

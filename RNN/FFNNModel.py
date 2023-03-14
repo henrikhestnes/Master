@@ -72,7 +72,6 @@ class Net(torch.nn.Module):
 
             for inputs, labels in val_loader:
                 pred = self(inputs)
-                row_len = len(labels[0])
                 acc += (pred.round() == labels).float().mean()
             print(f'Epoch: {epoch + 1}: Val acc: {acc}')
             
