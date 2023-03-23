@@ -43,23 +43,19 @@ class Net(nn.Module):
             self.linear_layers.append(last_layer)
 
         self.linear_layers = nn.ModuleList(self.linear_layers)
-        self.act =nn.ReLU()
+        self.act = nn.ReLU()
         
 
     def forward(self, input_seq):
-        # print(f'input_seq:{input_seq.size()}')
         torch.autograd.set_detect_anomaly(True)
         h_0 = Variable(torch.zeros(self.num_lstm_layers, input_seq.size(0), self.hidden_size)).requires_grad_() #hidden state
         c_0 = Variable(torch.zeros(self.num_lstm_layers, input_seq.size(0), self.hidden_size)).requires_grad_() #internal state
         output, (hn, cn) = self.lstm(input_seq, (h_0, c_0))
-        # print(f'hn: {hn.size()}')
 
-        x = hn[-1]#.view(-1, self.hidden_size)
-        # print(x.shape)
+        x = hn[-1]
         for layer in self.linear_layers:
             x = self.act(x)
             x = layer(x)
-        # print(x.shape)
         return x.reshape((input_seq.size(0), *self.output_shape))
 
     def train(
@@ -109,5 +105,4 @@ class Net(nn.Module):
             if i_since_last_update > patience:
                 print(f"Stopping early with mse={best_mse}")
                 break
-        print("updating weights")
         self.load_state_dict(best_weights)
