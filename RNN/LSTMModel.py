@@ -47,7 +47,6 @@ class Net(nn.Module):
         
 
     def forward(self, input_seq):
-        torch.autograd.set_detect_anomaly(True)
         h_0 = Variable(torch.zeros(self.num_lstm_layers, input_seq.size(0), self.hidden_size)).requires_grad_() #hidden state
         c_0 = Variable(torch.zeros(self.num_lstm_layers, input_seq.size(0), self.hidden_size)).requires_grad_() #internal state
         output, (hn, cn) = self.lstm(input_seq, (h_0, c_0))

@@ -86,6 +86,5 @@ class Net(torch.nn.Module):
             if i_since_last_update > patience:
                 print(f"Stopping early with acc={best_acc}")
                 break
-        print("updating self")
         self.load_state_dict(best_weights)
                     
