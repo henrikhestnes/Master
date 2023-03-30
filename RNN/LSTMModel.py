@@ -70,7 +70,7 @@ class Net(nn.Module):
         criterion = torch.nn.MSELoss()
         optimizer = torch.optim.Adam(self.parameters(), lr = lr)
         best_mse = np.inf
-        patience = 5
+        patience = 8
         i_since_last_update = 0
 
         for epoch in range(n_epochs):
