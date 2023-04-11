@@ -5,19 +5,20 @@
 #                     https://arxiv.org/pdf/1706.03762.pdf
 #                     https://towardsdatascience.com/a-detailed-guide-to-pytorchs-nn-transformer-module-c80afbc9ffb1
 #                     https://towardsdatascience.com/how-to-make-a-pytorch-transformer-for-time-series-forecasting-69e073d4061e
-import torch
-import torch.nn as nn
-import torch.optim as optim
+# import torch
+# import torch.optim as optim
 
-import math
-import numpy as np
+from torch import nn, optim
+from torch.utils.data import DataLoader
 
-class Transformer(nn.module):
+
+class Transformer(nn.Module):
     def __init__(
         self,
         num_features,
-        seq_length = 96,
-        output_seq_length = 8,
+        num_labels,
+        input_seq_length,
+        output_seq_length,
         num_heads = 8,
         num_encoder_layers = 6,
         num_decoder_layers = 6,
@@ -28,12 +29,18 @@ class Transformer(nn.module):
         # INFO
         self.model_type = "Transformer"
         self.num_features = num_features
-        self.seq_length = seq_length
+        self.input_seq_length = input_seq_length
         self.output_seq_length = output_seq_length
 
+        d_model = 512
+
         # Layers
+        self.src_linear_in = nn.Linear(num_features, d_model)
+        self.tgt_linear_in = nn.Linear(num_labels, d_model)
+
         self.transformer = nn.Transformer(
-            d_model=num_features,
+            # d_model=num_features,
+            d_model=d_model,
             nhead=num_heads,
             num_encoder_layers=num_encoder_layers,
             num_decoder_layers=num_decoder_layers,
@@ -41,37 +48,45 @@ class Transformer(nn.module):
             batch_first=True
         )
 
-        self.mask = self.transformer.generate_square_subsequent_mask(seq_length)
+        self.output_linear = nn.Linear(d_model, num_labels)
+
+        self.tgt_mask = self.transformer.generate_square_subsequent_mask(output_seq_length)
+        #TODO: Do we need src_mask??
+        # self.src_mask = self.transformer.generate_square_subsequent_mask(output_seq_length)
 
 
-    def forward(self):
-        pass
+    def forward(self, src, tgt):
+        #TODO: Add positional encoding logic
+        src = self.src_linear_in(src)
+        tgt = self.tgt_linear_in(tgt)
+        out = self.transformer(src, tgt, tgt_mask=self.tgt_mask)
+        return self.output_linear(out)
 
+    def train(            
+            self,
+            train_data: DataLoader,
+            val_data: DataLoader,
+            n_epochs: int,
+            lr: float,
+            l1_reg: float,
+    ) -> nn.Module:
+        criterion = nn.MSELoss()
+        optimizer = optim.Adam(self.parameters(), lr = lr)
 
-class PositionalEncoding(nn.Module):
-    def __init__(self, dim_model, dropout_p, max_len):
-        super().__init__()
-        # Modified version from: https://pytorch.org/tutorials/beginner/transformer_tutorial.html
-        # max_len determines how far the position can have an effect on a token (window)
-        
-        # Info
-        self.dropout = nn.Dropout(dropout_p)
-        
-        # Encoding - From formula
-        pos_encoding = torch.zeros(max_len, dim_model)
-        positions_list = torch.arange(0, max_len, dtype=torch.float).view(-1, 1) # 0, 1, 2, 3, 4, 5
-        division_term = torch.exp(torch.arange(0, dim_model, 2).float() * (-math.log(10000.0)) / dim_model) # 1000^(2i/dim_model)
-        
-        # PE(pos, 2i) = sin(pos/1000^(2i/dim_model))
-        pos_encoding[:, 0::2] = torch.sin(positions_list * division_term)
-        
-        # PE(pos, 2i + 1) = cos(pos/1000^(2i/dim_model))
-        pos_encoding[:, 1::2] = torch.cos(positions_list * division_term)
-        
-        # Saving buffer (same as parameter without gradients needed)
-        pos_encoding = pos_encoding.unsqueeze(0).transpose(0, 1)
-        self.register_buffer("pos_encoding",pos_encoding)
-        
-    def forward(self, token_embedding: torch.tensor) -> torch.tensor:
-        # Residual connection + pos encoding
-        return self.dropout(token_embedding + self.pos_encoding[:token_embedding.size(0), :])
+        for epoch in range(n_epochs):
+            i=0
+            for src, tgt, label in train_data:
+                print(i)
+                i+=1
+                optimizer.zero_grad()
+
+                prediction = self(src, tgt)
+
+                batch_mse = criterion(prediction, label)
+                reg_loss = 0
+                for param in self.parameters():
+                        reg_loss += param.abs().sum()
+                cost = batch_mse + l1_reg * reg_loss
+                cost.backward()
+                optimizer.step()
+            print(f'Epoch: {epoch+1}, Test loss: {cost.item()}')
