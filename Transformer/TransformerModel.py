@@ -74,10 +74,7 @@ class Transformer(nn.Module):
         optimizer = optim.Adam(self.parameters(), lr = lr)
 
         for epoch in range(n_epochs):
-            i=0
-            for src, tgt, label in train_data:
-                print(i)
-                i+=1
+            for i, (src, tgt, label) in enumerate(train_data):
                 optimizer.zero_grad()
 
                 prediction = self(src, tgt)
@@ -87,6 +84,7 @@ class Transformer(nn.Module):
                 for param in self.parameters():
                         reg_loss += param.abs().sum()
                 cost = batch_mse + l1_reg * reg_loss
+                print(f'Batch: {i}, Test Loss: {cost.item()}')
                 cost.backward()
                 optimizer.step()
             print(f'Epoch: {epoch+1}, Test loss: {cost.item()}')
