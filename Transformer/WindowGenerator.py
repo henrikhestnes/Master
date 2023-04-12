@@ -10,12 +10,18 @@ class WindowGenerator(Dataset):
         self.data = []
 
     def add_data(self, df, label_columns):
+        features = df.iloc[:, :-6]
+        positions = df.iloc[:, -6:]
+        print(features.shape)
+        print(positions.shape)
         labels = df.loc[:, label_columns]
         for i in range(len(df) - (self.sequence_width + self.label_width + self.shift)):
-            src = df.iloc[i:i+self.sequence_width]
+            src = features.iloc[i:i+self.sequence_width]
             tgt = labels.iloc[i+self.shift+self.sequence_width-1:i+self.shift+self.sequence_width+self.label_width-1]
+            pos = positions[i:i+self.shift+self.sequence_width+self.label_width-1]
             label = labels.iloc[i+self.shift+self.sequence_width:i+self.shift+self.sequence_width+self.label_width]
-            self.data.append((torch.tensor(src.values, dtype=torch.float), torch.tensor(tgt.values, dtype=torch.float), torch.tensor(label.values, dtype=torch.float)))
+            self.data.append((torch.tensor(src.values, dtype=torch.float), torch.tensor(tgt.values, dtype=torch.float),
+                              torch.tensor(pos.values, dtype=torch.float), torch.tensor(label.values, dtype=torch.float)))
 
         # Work out the label column indices.
         self.label_columns = label_columns
@@ -30,5 +36,4 @@ class WindowGenerator(Dataset):
 
     def __repr__(self):
         return '\n'.join([
-            f'Window sizes: {self.total_window_size}',
             f'Num train windows: {len(self.data)}'])

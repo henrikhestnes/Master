@@ -7,7 +7,7 @@
 #                     https://towardsdatascience.com/how-to-make-a-pytorch-transformer-for-time-series-forecasting-69e073d4061e
 # import torch
 # import torch.optim as optim
-
+import torch
 from torch import nn, optim
 from torch.utils.data import DataLoader
 
@@ -32,11 +32,14 @@ class Transformer(nn.Module):
         self.input_seq_length = input_seq_length
         self.output_seq_length = output_seq_length
 
+        n_pos_encoding = 6
         d_model = 512
-
+        d_model_input_features = d_model - n_pos_encoding
         # Layers
-        self.src_linear_in = nn.Linear(num_features, d_model)
-        self.tgt_linear_in = nn.Linear(num_labels, d_model)
+        self.src_linear_in = nn.Linear(num_features, d_model_input_features)
+        self.tgt_linear_in = nn.Linear(num_labels, d_model_input_features)
+
+        self.pos_encoding = PositionalEncoder()
 
         self.transformer = nn.Transformer(
             # d_model=num_features,
@@ -55,10 +58,13 @@ class Transformer(nn.Module):
         # self.src_mask = self.transformer.generate_square_subsequent_mask(output_seq_length)
 
 
-    def forward(self, src, tgt):
-        #TODO: Add positional encoding logic
+    def forward(self, src, tgt, pos_enc):
         src = self.src_linear_in(src)
         tgt = self.tgt_linear_in(tgt)
+
+        src = self.pos_encoding(src, pos_enc[:, :src.shape[1], :])
+        tgt = self.pos_encoding(tgt, pos_enc[:, -tgt.shape[1]:, :])
+
         out = self.transformer(src, tgt, tgt_mask=self.tgt_mask)
         return self.output_linear(out)
 
@@ -74,10 +80,10 @@ class Transformer(nn.Module):
         optimizer = optim.Adam(self.parameters(), lr = lr)
 
         for epoch in range(n_epochs):
-            for i, (src, tgt, label) in enumerate(train_data):
+            for i, (src, tgt, pos_enc, label) in enumerate(train_data):
                 optimizer.zero_grad()
 
-                prediction = self(src, tgt)
+                prediction = self(src, tgt, pos_enc)
 
                 batch_mse = criterion(prediction, label)
                 reg_loss = 0
@@ -88,3 +94,20 @@ class Transformer(nn.Module):
                 cost.backward()
                 optimizer.step()
             print(f'Epoch: {epoch+1}, Test loss: {cost.item()}')
+
+class PositionalEncoder(nn.Module):
+    def __init__(
+               self,
+               dropout=0.1,
+               d_model=512,
+               batch_first=True
+    ):
+            super().__init__()
+            
+            self.d_model = d_model
+            self.dropout = nn.Dropout(p=dropout)
+            self.batch_first = batch_first
+    
+    def forward(self, seq, positional_encoding):
+         enc = torch.cat((seq, positional_encoding), dim=2)
+         return self.dropout(enc)
