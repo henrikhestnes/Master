@@ -10,6 +10,7 @@
 import torch
 from torch import nn, optim
 from torch.utils.data import DataLoader
+import numpy as np
 
 
 class Transformer(nn.Module):
@@ -33,7 +34,7 @@ class Transformer(nn.Module):
         self.output_seq_length = output_seq_length
 
         n_pos_encoding = 6
-        d_model = 512
+        d_model = 64
         d_model_input_features = d_model - n_pos_encoding
         # Layers
         self.src_linear_in = nn.Linear(num_features, d_model_input_features)
@@ -42,7 +43,6 @@ class Transformer(nn.Module):
         self.pos_encoding = PositionalEncoder()
 
         self.transformer = nn.Transformer(
-            # d_model=num_features,
             d_model=d_model,
             nhead=num_heads,
             num_encoder_layers=num_encoder_layers,
@@ -53,25 +53,22 @@ class Transformer(nn.Module):
 
         self.output_linear = nn.Linear(d_model, num_labels)
 
-        self.tgt_mask = self.transformer.generate_square_subsequent_mask(output_seq_length)
-        #TODO: Do we need src_mask??
-        # self.src_mask = self.transformer.generate_square_subsequent_mask(output_seq_length)
-
 
     def forward(self, src, tgt, pos_enc):
+        tgt_mask = self.transformer.generate_square_subsequent_mask(tgt.shape[1])
         src = self.src_linear_in(src)
         tgt = self.tgt_linear_in(tgt)
 
         src = self.pos_encoding(src, pos_enc[:, :src.shape[1], :])
-        tgt = self.pos_encoding(tgt, pos_enc[:, -tgt.shape[1]:, :])
+        tgt = self.pos_encoding(tgt, pos_enc[:, src.shape[1]-1:src.shape[1]+tgt.shape[1]-1, :])
 
-        out = self.transformer(src, tgt, tgt_mask=self.tgt_mask)
+        out = self.transformer(src, tgt, tgt_mask=tgt_mask)
         return self.output_linear(out)
 
-    def train(            
+    def train_model(            
             self,
-            train_data: DataLoader,
-            val_data: DataLoader,
+            train_loader: DataLoader,
+            val_loader: DataLoader,
             n_epochs: int,
             lr: float,
             l1_reg: float,
@@ -79,8 +76,9 @@ class Transformer(nn.Module):
         criterion = nn.MSELoss()
         optimizer = optim.Adam(self.parameters(), lr = lr)
 
+        train_mse = 0
         for epoch in range(n_epochs):
-            for i, (src, tgt, pos_enc, label) in enumerate(train_data):
+            for i, (src, tgt, pos_enc, label) in enumerate(train_loader):
                 optimizer.zero_grad()
 
                 prediction = self(src, tgt, pos_enc)
@@ -91,9 +89,31 @@ class Transformer(nn.Module):
                         reg_loss += param.abs().sum()
                 cost = batch_mse + l1_reg * reg_loss
                 print(f'Batch: {i}, Test Loss: {cost.item()}')
+                train_mse += cost.item()
                 cost.backward()
                 optimizer.step()
-            print(f'Epoch: {epoch+1}, Test loss: {cost.item()}')
+
+            print(f'Epoch: {epoch+1}, Test loss: {train_mse/len(train_loader)}')
+
+            with torch.no_grad():
+                self.eval()
+                val_mse = 0 
+                for src, tgt, pos, label in val_loader:
+                    pred = run_inference(self, src, pos, len(label))
+                    val_mse += np.mean(np.power(label-pred, 2))
+                val_mse /= len(val_loader)
+
+            print(f'Epoch: {epoch + 1}: Val MSE: {val_mse}')
+
+        def run_inference(model, src, pos_enc, forecast_window):
+            label_indices = [1, 2, 4, 5, 6, 9, 11, 12, 13, 15]
+
+            tgt = src[:, -1, label_indices].reshape(src.shape[0], 1, len(label_indices))
+            for _ in range(forecast_window-1):
+                pred = model(src, tgt, pos_enc)
+                tgt = torch.cat((tgt, pred[:, -1, :].unsqueeze(1).detach()), dim=1)
+            final_pred = model(src, tgt, pos_enc)
+            return final_pred
 
 class PositionalEncoder(nn.Module):
     def __init__(
