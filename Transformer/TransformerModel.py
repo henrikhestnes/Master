@@ -12,6 +12,15 @@ from torch import nn, optim
 from torch.utils.data import DataLoader
 import numpy as np
 
+def run_inference(model, src, pos_enc, forecast_window):
+    label_indices = [1, 2, 4, 5, 6, 9, 11, 12, 13, 15]
+
+    tgt = src[:, -1, label_indices].reshape(src.shape[0], 1, len(label_indices))
+    for _ in range(forecast_window-1):
+        pred = model(src, tgt, pos_enc)
+        tgt = torch.cat((tgt, pred[:, -1, :].unsqueeze(1).detach()), dim=1)
+    final_pred = model(src, tgt, pos_enc)
+    return final_pred
 
 class Transformer(nn.Module):
     def __init__(
@@ -88,32 +97,22 @@ class Transformer(nn.Module):
                 for param in self.parameters():
                         reg_loss += param.abs().sum()
                 cost = batch_mse + l1_reg * reg_loss
-                print(f'Batch: {i}, Test Loss: {cost.item()}')
+                print(f'Batch: {i}, Train Loss: {cost.item()}')
                 train_mse += cost.item()
                 cost.backward()
                 optimizer.step()
 
-            print(f'Epoch: {epoch+1}, Test loss: {train_mse/len(train_loader)}')
+            print(f'Epoch: {epoch+1}, Train Loss: {train_mse/len(train_loader)}')
 
             with torch.no_grad():
                 self.eval()
                 val_mse = 0 
                 for src, tgt, pos, label in val_loader:
-                    pred = run_inference(self, src, pos, len(label))
-                    val_mse += np.mean(np.power(label-pred, 2))
+                    pred = run_inference(self, src, pos, label.shape[1])
+                    val_mse += torch.mean(torch.pow(label-pred, 2))
                 val_mse /= len(val_loader)
 
             print(f'Epoch: {epoch + 1}: Val MSE: {val_mse}')
-
-        def run_inference(model, src, pos_enc, forecast_window):
-            label_indices = [1, 2, 4, 5, 6, 9, 11, 12, 13, 15]
-
-            tgt = src[:, -1, label_indices].reshape(src.shape[0], 1, len(label_indices))
-            for _ in range(forecast_window-1):
-                pred = model(src, tgt, pos_enc)
-                tgt = torch.cat((tgt, pred[:, -1, :].unsqueeze(1).detach()), dim=1)
-            final_pred = model(src, tgt, pos_enc)
-            return final_pred
 
 class PositionalEncoder(nn.Module):
     def __init__(
