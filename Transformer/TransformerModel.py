@@ -10,7 +10,7 @@
 import torch
 from torch import nn, optim
 from torch.utils.data import DataLoader
-import numpy as np
+import copy
 
 def run_inference(model, src, pos_enc, forecast_window):
     label_indices = [1, 2, 4, 5, 6, 9, 11, 12, 13, 15]
@@ -85,8 +85,12 @@ class Transformer(nn.Module):
         criterion = nn.MSELoss()
         optimizer = optim.Adam(self.parameters(), lr = lr)
 
-        train_mse = 0
+        best_mse = float('inf')
+        patience = 10
+        i_since_last_update = 0
+
         for epoch in range(n_epochs):
+            train_mse = 0
             for i, (src, tgt, pos_enc, label) in enumerate(train_loader):
                 optimizer.zero_grad()
 
@@ -97,22 +101,37 @@ class Transformer(nn.Module):
                 for param in self.parameters():
                         reg_loss += param.abs().sum()
                 cost = batch_mse + l1_reg * reg_loss
-                print(f'Batch: {i}, Train Loss: {cost.item()}')
+                print(f'Batch: {i}, Batch Train MSE: {cost.item()}')
                 train_mse += cost.item()
                 cost.backward()
                 optimizer.step()
 
-            print(f'Epoch: {epoch+1}, Train Loss: {train_mse/len(train_loader)}')
+            print(f'Epoch: {epoch+1}, Epoch Train MSE: {train_mse/len(train_loader)}')
 
+            val_mse = 0 
             with torch.no_grad():
                 self.eval()
-                val_mse = 0 
                 for src, tgt, pos, label in val_loader:
                     pred = run_inference(self, src, pos, label.shape[1])
                     val_mse += torch.mean(torch.pow(label-pred, 2))
                 val_mse /= len(val_loader)
+                self.train()
 
             print(f'Epoch: {epoch + 1}: Val MSE: {val_mse}')
+
+            #Early stopping
+            if val_mse < best_mse:
+                best_weights = copy.deepcopy(self.state_dict())
+                i_since_last_update = 0
+                best_mse = val_mse
+            else:
+                i_since_last_update += 1
+
+            if i_since_last_update > patience:
+                print(f"Stopping early with mse={best_mse}")
+                break
+            
+        self.load_state_dict(best_weights)
 
 class PositionalEncoder(nn.Module):
     def __init__(
