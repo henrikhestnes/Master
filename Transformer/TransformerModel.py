@@ -27,6 +27,7 @@ class Transformer(nn.Module):
         self,
         num_features,
         num_labels,
+        d_model,
         input_seq_length,
         output_seq_length,
         num_heads = 8,
@@ -43,7 +44,7 @@ class Transformer(nn.Module):
         self.output_seq_length = output_seq_length
 
         n_pos_encoding = 6
-        d_model = 64
+        d_model = d_model
         d_model_input_features = d_model - n_pos_encoding
         # Layers
         self.src_linear_in = nn.Linear(num_features, d_model_input_features)
@@ -101,7 +102,7 @@ class Transformer(nn.Module):
                 for param in self.parameters():
                         reg_loss += param.abs().sum()
                 cost = batch_mse + l1_reg * reg_loss
-                print(f'Batch: {i}, Batch Train MSE: {cost.item()}')
+                # print(f'Batch: {i}, Batch Train MSE: {cost.item()}')
                 train_mse += cost.item()
                 cost.backward()
                 optimizer.step()
@@ -130,7 +131,7 @@ class Transformer(nn.Module):
             if i_since_last_update > patience:
                 print(f"Stopping early with mse={best_mse}")
                 break
-            
+
         self.load_state_dict(best_weights)
 
 class PositionalEncoder(nn.Module):
