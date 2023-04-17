@@ -143,11 +143,11 @@ def _rolling_forecast(model, door_model, start_window, future_windows, steps, ti
                 else:
                     next_state[n][window_index] = future_windows[timesteps_per_step*i][0][-(timesteps_per_step-n)][window_index]
         
-        doors_removed = next_state[0, not_door_indices]
+        doors_removed = next_state[:, not_door_indices]
         door_pred = door_model(doors_removed).round()
         for door_index, window_index in enumerate(door_indices):
             for n in range(timesteps_per_step):
-                next_state[n][window_index] = door_pred[door_index]
+                next_state[n][window_index] = door_pred[n][door_index]
         current_window = torch.roll(current_window, -timesteps_per_step, dims=0)
         current_window[-timesteps_per_step:] = next_state
 
