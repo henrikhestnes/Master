@@ -1,26 +1,16 @@
-# Inspiration: https://github.com/AIStream-Peelout/flow-forecast/blob/master/flood_forecast/transformer_xl/transformer_basic.py
+# Inspiration: https://towardsdatascience.com/how-to-make-a-pytorch-transformer-for-time-series-forecasting-69e073d4061e
+
 # Other good sources: https://github.com/nklingen/Transformer-Time-Series-Forecasting
 #                     https://medium.com/mlearning-ai/transformer-implementation-for-time-series-forecasting-a9db2db5c820
 #                     https://towardsdatascience.com/how-to-use-transformer-networks-to-build-a-forecasting-model-297f9270e630
 #                     https://arxiv.org/pdf/1706.03762.pdf
 #                     https://towardsdatascience.com/a-detailed-guide-to-pytorchs-nn-transformer-module-c80afbc9ffb1
-#                     https://towardsdatascience.com/how-to-make-a-pytorch-transformer-for-time-series-forecasting-69e073d4061e
-# import torch
-# import torch.optim as optim
+
 import torch
 from torch import nn, optim
 from torch.utils.data import DataLoader
 import copy
 
-def run_inference(model, src, pos_enc, forecast_window):
-    label_indices = [1, 2, 4, 5, 6, 9, 11, 12, 13, 15]
-
-    tgt = src[:, -1, label_indices].reshape(src.shape[0], 1, len(label_indices))
-    for _ in range(forecast_window-1):
-        pred = model(src, tgt, pos_enc)
-        tgt = torch.cat((tgt, pred[:, -1, :].unsqueeze(1).detach()), dim=1)
-    final_pred = model(src, tgt, pos_enc)
-    return final_pred
 
 class Transformer(nn.Module):
     def __init__(
@@ -63,6 +53,15 @@ class Transformer(nn.Module):
 
         self.output_linear = nn.Linear(d_model, num_labels)
 
+    def run_inference(self, src, pos_enc, forecast_window):
+        label_indices = [1, 2, 4, 5, 6, 9, 11, 12, 13, 15]
+
+        tgt = src[:, -1, label_indices].unsqueeze(1)
+        for _ in range(forecast_window-1):
+            pred = self(src, tgt, pos_enc)
+            tgt = torch.cat((tgt, pred[:, -1, :].unsqueeze(1).detach()), dim=1)
+        final_pred = self(src, tgt, pos_enc)
+        return final_pred
 
     def forward(self, src, tgt, pos_enc):
         tgt_mask = self.transformer.generate_square_subsequent_mask(tgt.shape[1])
