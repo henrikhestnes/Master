@@ -24,6 +24,7 @@ class Transformer(nn.Module):
         num_heads = 8,
         num_encoder_layers = 6,
         num_decoder_layers = 6,
+        dim_feedforward = 2048,
         dropout_p = 0.1,
     ):
         super().__init__()
@@ -48,6 +49,7 @@ class Transformer(nn.Module):
             nhead=num_heads,
             num_encoder_layers=num_encoder_layers,
             num_decoder_layers=num_decoder_layers,
+            dim_feedforward=dim_feedforward, 
             dropout=dropout_p,
             batch_first=True
         )
