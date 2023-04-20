@@ -24,6 +24,7 @@ class Transformer(nn.Module):
         num_heads = 8,
         num_encoder_layers = 6,
         num_decoder_layers = 6,
+        dim_feedforward = 2048,
         dropout_p = 0.1,
     ):
         super().__init__()
@@ -48,6 +49,7 @@ class Transformer(nn.Module):
             nhead=num_heads,
             num_encoder_layers=num_encoder_layers,
             num_decoder_layers=num_decoder_layers,
+            dim_feedforward=dim_feedforward, 
             dropout=dropout_p,
             batch_first=True
         )
@@ -95,23 +97,23 @@ class Transformer(nn.Module):
         i_since_last_update = 0
 
         for epoch in range(n_epochs):
-            # train_mse = 0
-            # for src, tgt, pos_enc, label in train_loader:
-            #     optimizer.zero_grad()
+            train_mse = 0
+            for src, tgt, pos_enc, label in train_loader:
+                optimizer.zero_grad()
 
-            #     prediction = self(src, tgt, pos_enc)
+                prediction = self(src, tgt, pos_enc)
 
-            #     batch_mse = criterion(prediction, label)
-            #     reg_loss = 0
-            #     for param in self.parameters():
-            #             reg_loss += param.abs().sum()
-            #     cost = batch_mse + l1_reg * reg_loss
-            #     # print(f'Batch: {i}, Batch Train MSE: {cost.item()}')
-            #     train_mse += cost.item()
-            #     cost.backward()
-            #     optimizer.step()
+                batch_mse = criterion(prediction, label)
+                reg_loss = 0
+                for param in self.parameters():
+                        reg_loss += param.abs().sum()
+                cost = batch_mse + l1_reg * reg_loss
+                # print(f'Batch: {i}, Batch Train MSE: {cost.item()}')
+                train_mse += cost.item()
+                cost.backward()
+                optimizer.step()
 
-            # print(f'Epoch: {epoch+1}, Epoch Train MSE: {train_mse/len(train_loader)}')
+            print(f'Epoch: {epoch+1}, Epoch Train MSE: {train_mse/len(train_loader)}')
 
             rf_val_mae = 0 
 
