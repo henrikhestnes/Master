@@ -91,6 +91,7 @@ class Transformer(nn.Module):
     ) -> nn.Module:
         criterion = nn.MSELoss()
         optimizer = optim.Adam(self.parameters(), lr = lr)
+        scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer, base_lr=lr, max_lr=0.01, cycle_momentum=False)
 
         best_mae = float('inf')
         patience = 10
@@ -112,6 +113,7 @@ class Transformer(nn.Module):
                 train_mse += cost.item()
                 cost.backward()
                 optimizer.step()
+                scheduler.step()
 
             print(f'Epoch: {epoch+1}, Epoch Train MSE: {train_mse/len(train_loader)}')
 
@@ -124,7 +126,7 @@ class Transformer(nn.Module):
             eval_windows_index = np.random.choice(range(0, len(val_windows)-preds_per_day*steps_per_pred-1), num_preds)
             for start_index in eval_windows_index:
                 start_window = val_windows[start_index]
-                future_windows = val_windows[start_index+1:start_index+preds_per_day*steps_per_pred+1]
+                future_windows = val_windows[start_index+steps_per_pred:start_index+preds_per_day*steps_per_pred+steps_per_pred]
                 pred, true = _rolling_forecast(self, door_model, start_window, future_windows, preds_per_day, steps_per_pred)
                 rf_val_mae += np.mean(np.abs(true-pred))
             rf_val_mae /= num_preds
