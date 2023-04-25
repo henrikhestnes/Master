@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 
 class Net(nn.Module):
     def __init__(self, input_size, hidden_size, output_shape, num_lstm_layers,
-                 proj_size = 0,linear_layers=[]):
+                 proj_size = 0,linear_layers=[], bidir=False, x_dot_label=False):
         super(Net, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
@@ -17,9 +17,11 @@ class Net(nn.Module):
         self.output_size = np.prod(output_shape)
         self.num_lstm_layers = num_lstm_layers
         self.proj_size = proj_size
+        self.x_dot_label = x_dot_label
+        self.bidir = bidir
 
         self.lstm = nn.LSTM(input_size=input_size, hidden_size=hidden_size, num_layers=num_lstm_layers,
-                            batch_first=True, proj_size=proj_size)
+                            batch_first=True, proj_size=proj_size, bidirectional=bidir)
         if linear_layers == []:
             self.linear_layers = [nn.Linear(hidden_size, self.output_size)]
         else:
@@ -48,8 +50,9 @@ class Net(nn.Module):
         
 
     def forward(self, input_seq):
-        h_0 = Variable(torch.zeros(self.num_lstm_layers, input_seq.size(0), self.hidden_size)).requires_grad_() #hidden state
-        c_0 = Variable(torch.zeros(self.num_lstm_layers, input_seq.size(0), self.hidden_size)).requires_grad_() #internal state
+        d = 2 if self.bidir else 1
+        h_0 = Variable(torch.zeros(d*self.num_lstm_layers, input_seq.size(0), self.hidden_size)).requires_grad_() #hidden state
+        c_0 = Variable(torch.zeros(d*self.num_lstm_layers, input_seq.size(0), self.hidden_size)).requires_grad_() #internal state
         output, (hn, cn) = self.lstm(input_seq, (h_0, c_0))
 
         x = hn[-1]
@@ -66,6 +69,7 @@ class Net(nn.Module):
             n_epochs: int,
             lr: float,
             l1_reg: float,
+            y_scaler = None
     ) -> torch.nn.Module:
         criterion = torch.nn.MSELoss()
         optimizer = torch.optim.Adam(self.parameters(), lr = lr)
@@ -74,7 +78,8 @@ class Net(nn.Module):
         i_since_last_update = 0
 
         for epoch in range(n_epochs):
-            for inputs, targets in train_data:
+            train_loss = 0
+            for i, (inputs, targets) in enumerate(train_data):
                 optimizer.zero_grad()
                 outputs = self(inputs)
 
@@ -85,7 +90,8 @@ class Net(nn.Module):
                 cost = batch_mse + l1_reg * reg_loss
                 cost.backward()
                 optimizer.step()
-            print(f'Epoch: {epoch+1}, Test loss: {cost.item()}')
+                train_loss += cost.item()
+            print(f'Epoch: {epoch+1}, Train loss: {train_loss/i}')
 
             rf_mae_val = 0
 
@@ -98,7 +104,7 @@ class Net(nn.Module):
             for i, start_index in enumerate(eval_windows_index):
                 start_window = val_windows[start_index][0]
                 future_window = val_windows[start_index+1:start_index+steps_per_pred*preds_per_day+1]
-                prediction, ground_truth = _rolling_forecast(self, door_model, start_window, future_window, preds_per_day, steps_per_pred)
+                prediction, ground_truth = _rolling_forecast(self, door_model, start_window, future_window, preds_per_day, steps_per_pred, self.x_dot_label, y_scaler)
                 rf_mae_val += np.mean(np.abs(ground_truth-prediction))
             rf_mae_val /= num_preds
 
@@ -117,7 +123,7 @@ class Net(nn.Module):
                 break
         self.load_state_dict(best_weights)
 
-def _rolling_forecast(model, door_model, start_window, future_windows, steps, timesteps_per_step):
+def _rolling_forecast(model, door_model, start_window, future_windows, steps, timesteps_per_step, x_dot_label, y_scaler = None):
     temp_indices = [1, 2, 4, 5, 6, 9, 11, 12, 13, 15]
     cols_to_update_indices = [8, 16, 17, 18, 19, 20, 21]
     door_indices = [0, 3, 7, 10, 14]
@@ -131,9 +137,14 @@ def _rolling_forecast(model, door_model, start_window, future_windows, steps, ti
         next_pred = model(current_window.reshape(1, current_window.shape[0], current_window.shape[1]))
         next_state = current_window[-timesteps_per_step:].clone()
         
-        for label_index, window_index in enumerate(temp_indices):
-            for n, row in enumerate(next_pred[0]):
-                next_state[n][window_index] = row[label_index]
+        n_temp = current_window[-1][temp_indices].clone()
+        # for label_index, window_index in enumerate(temp_indices):
+        for n, row in enumerate(next_pred[0]):
+            if x_dot_label:
+                n_temp += torch.tensor(y_scaler.inverse_transform(row.detach().reshape(1, -1)).squeeze())
+                next_state[n, temp_indices] = n_temp
+            else:
+                next_state[n, temp_indices] = row
         
         for window_index in cols_to_update_indices:
             for n in range(timesteps_per_step):
@@ -150,8 +161,7 @@ def _rolling_forecast(model, door_model, start_window, future_windows, steps, ti
                 next_state[n][window_index] = door_pred[n][door_index]
         current_window = torch.roll(current_window, -timesteps_per_step, dims=0)
         current_window[-timesteps_per_step:] = next_state
-
-        predictions.append(next_pred[0].detach().numpy())
+        predictions.append(next_state[:, temp_indices].detach().numpy())
         ground_truth.append(future_windows[timesteps_per_step*i][0][-timesteps_per_step:, temp_indices].detach().numpy())
     
     return np.array(predictions), np.array(ground_truth)
