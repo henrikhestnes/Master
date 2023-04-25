@@ -3,21 +3,27 @@ from torch.utils.data import Dataset
 import pandas as pd
 
 class WindowGenerator(Dataset):
-    def __init__(self, sequence_width, label_width, shift):
+    def __init__(self, sequence_width, label_width, shift, x_dot_label=False):
         self.sequence_width = int(sequence_width)
         self.label_width = int(label_width)
         self.shift = int(shift)
         self.data = []
+        self.x_dot_label = x_dot_label
 
     def add_data(self, data, positional_encoding, label_columns):
         positional_encoding = positional_encoding.loc[data.index]
-        labels = data.loc[:, label_columns]
+        if not self.x_dot_label:
+            labels = data.loc[:, label_columns]
         for i in range(len(data) - (self.sequence_width + self.label_width + self.shift)):
             src = data.iloc[i:i+self.sequence_width]
-            tgt = labels.iloc[i+self.shift+self.sequence_width-1:i+self.shift+self.sequence_width+self.label_width-1]
             pos = positional_encoding[i:i+self.shift+self.sequence_width+self.label_width-1]
+            if self.x_dot_label:
+                tgt = label_columns.iloc[i+self.shift+self.sequence_width-2:i+self.shift+self.sequence_width+self.label_width-2]
+                label = label_columns.iloc[i+self.shift+self.sequence_width-1:i+self.shift+self.sequence_width+self.label_width-1]
             # assert all(src.loc[:, label_columns].values[-1] == tgt.values[0])
-            label = labels.iloc[i+self.shift+self.sequence_width:i+self.shift+self.sequence_width+self.label_width]
+            else:
+                tgt = labels.iloc[i+self.shift+self.sequence_width-1:i+self.shift+self.sequence_width+self.label_width-1]
+                label = labels.iloc[i+self.shift+self.sequence_width:i+self.shift+self.sequence_width+self.label_width]
             self.data.append((torch.tensor(src.values, dtype=torch.float), torch.tensor(tgt.values, dtype=torch.float),
                               torch.tensor(pos.values, dtype=torch.float), torch.tensor(label.values, dtype=torch.float)))
 

@@ -26,6 +26,7 @@ class Transformer(nn.Module):
         num_decoder_layers = 6,
         dim_feedforward = 2048,
         dropout_p = 0.1,
+        x_dot_label = False
     ):
         super().__init__()
 
@@ -34,6 +35,7 @@ class Transformer(nn.Module):
         self.num_features = num_features
         self.input_seq_length = input_seq_length
         self.output_seq_length = output_seq_length
+        self.x_dot_label = x_dot_label
 
         n_pos_encoding = 6
         d_model = d_model
@@ -88,6 +90,7 @@ class Transformer(nn.Module):
             n_epochs: int,
             lr: float,
             l1_reg: float,
+            y_scaler = None
     ) -> nn.Module:
         criterion = nn.MSELoss()
         optimizer = optim.Adam(self.parameters(), lr = lr)
@@ -127,7 +130,7 @@ class Transformer(nn.Module):
             for start_index in eval_windows_index:
                 start_window = val_windows[start_index]
                 future_windows = val_windows[start_index+steps_per_pred:start_index+preds_per_day*steps_per_pred+steps_per_pred]
-                pred, true = _rolling_forecast(self, door_model, start_window, future_windows, preds_per_day, steps_per_pred)
+                pred, true = _rolling_forecast(self, door_model, start_window, future_windows, preds_per_day, steps_per_pred, self.x_dot_label, y_scaler)
                 rf_val_mae += np.mean(np.abs(true-pred))
             rf_val_mae /= num_preds
 
@@ -148,7 +151,7 @@ class Transformer(nn.Module):
         self.load_state_dict(best_weights)
 
 
-def _rolling_forecast(model, door_model, start_window, future_windows, steps, timesteps_per_step):
+def _rolling_forecast(model, door_model, start_window, future_windows, steps, timesteps_per_step, x_dot_label, y_scaler = None):
     temp_indices = [1, 2, 4, 5, 6, 9, 11, 12, 13, 15]
     cols_to_update_indices = [8]
     door_indices = [0, 3, 7, 10, 14]
@@ -163,9 +166,14 @@ def _rolling_forecast(model, door_model, start_window, future_windows, steps, ti
         next_pred = model.run_inference(current_window.unsqueeze(0), current_pos_enc.unsqueeze(0), timesteps_per_step)
         next_state = current_window[-timesteps_per_step:].clone()
         
-        for label_index, window_index in enumerate(temp_indices):
-            for n, row in enumerate(next_pred[0]):
-                next_state[n][window_index] = row[label_index]
+        # for label_index, window_index in enumerate(temp_indices):
+        n_temp = current_window[-1][temp_indices].clone()
+        for n, row in enumerate(next_pred[0]):
+            if x_dot_label:
+                n_temp += torch.tensor(y_scaler.inverse_transform(row.detach().reshape(1, -1)).squeeze())
+                next_state[n, temp_indices] = n_temp
+            else:
+                next_state[n, temp_indices] = row
         
         for window_index in cols_to_update_indices:
             for n in range(timesteps_per_step):
@@ -183,7 +191,7 @@ def _rolling_forecast(model, door_model, start_window, future_windows, steps, ti
         current_window = torch.roll(current_window, -timesteps_per_step, dims=0)
         current_window[-timesteps_per_step:] = next_state
 
-        predictions.append(next_pred[0].detach().numpy())
+        predictions.append(next_state[:, temp_indices].detach().numpy())
         ground_truth.append(future_windows[timesteps_per_step*i][0][-timesteps_per_step:, temp_indices].detach().numpy())
     
     return np.array(predictions), np.array(ground_truth)
