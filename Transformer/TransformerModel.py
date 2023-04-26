@@ -94,7 +94,6 @@ class Transformer(nn.Module):
     ) -> nn.Module:
         criterion = nn.MSELoss()
         optimizer = optim.Adam(self.parameters(), lr = lr)
-        scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer, base_lr=lr, max_lr=0.01, cycle_momentum=False)
 
         best_mae = float('inf')
         patience = 10
@@ -112,11 +111,9 @@ class Transformer(nn.Module):
                 for param in self.parameters():
                         reg_loss += param.abs().sum()
                 cost = batch_mse + l1_reg * reg_loss
-                # print(f'Batch: {i}, Batch Train MSE: {cost.item()}')
                 train_mse += cost.item()
                 cost.backward()
                 optimizer.step()
-                scheduler.step()
 
             print(f'Epoch: {epoch+1}, Epoch Train MSE: {train_mse/len(train_loader)}')
 
