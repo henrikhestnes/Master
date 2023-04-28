@@ -38,52 +38,9 @@ class Net(torch.nn.Module):
             x = self.act(x)
         output_layer = self.linear_layers[-1]
         output = output_layer(x)
-        return output
+        return output.float()
 
     def get_num_params(self):
         return sum(param.numel() for param in self.parameters())
-    
-    def train(
-            self,
-            train_loader: DataLoader,
-            val_loader: DataLoader,
-            n_epochs: int,
-            lr: float,
-            l2_reg: float,
-    ) -> torch.nn.Module:
-        criterion = torch.nn.BCELoss()
-        optimizer = torch.optim.Adam(self.parameters(), lr = lr)
-        best_acc = 0
-        patience = 50
-        i_since_last_update = 0
-        for epoch in range(n_epochs):
-            for inputs, labels in train_loader:
-                optimizer.zero_grad()
-                outputs = self(inputs)
-                batch_mse = criterion(outputs, labels)
-                reg_loss = 0
-                for param in self.parameters():
-                        reg_loss += param.abs().sum()
-                cost = batch_mse + l2_reg * reg_loss
-                cost.backward()
-                optimizer.step()
-            acc = 0
 
-            for inputs, labels in val_loader:
-                pred = self(inputs)
-                acc += (pred.round() == labels).float().mean()
-            print(f'Epoch: {epoch + 1}: Val acc: {acc}')
-            
-            #Early stopping
-            if acc > best_acc:
-                best_weights = copy.deepcopy(self.state_dict())
-                i_since_last_update = 0
-                best_acc = acc
-            else:
-                i_since_last_update += 1
-
-            if i_since_last_update > patience:
-                print(f"Stopping early with acc={best_acc}")
-                break
-        self.load_state_dict(best_weights)
                     
