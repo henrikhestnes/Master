@@ -82,7 +82,8 @@ class thermoPBM():
         T_dot_wall = np.linalg.inv(self.C2) @ rhs_wall
         return T_dot_room, T_dot_wall
     
-    def calculate_U(self, T_ext, Q_sunExt, Q_sunPen, Q_ir, Ww, Lr, Wr, Lc, H, C):
+    def calculate_U(self, T_ext, Q_sunExt=np.zeros(13), Q_sunPen=np.zeros(13), Q_ir=np.zeros(13),
+                    Ww=0.5, Lr=np.zeros(13), Wr=0.5, Lc=np.zeros(13), H=np.zeros(13), C=np.zeros(13)):
         u_room = np.divide(self.k_2, self.R_inWall)*(Q_sunPen*Ww+Lr) + Q_sunPen*Wr+Lc+H-C
         u_wall = np.divide(self.k_2, self.R_room)*(Q_sunPen*Wr+Lr) + np.divide(self.k_1, self.R_ext)*(self.R_ext*T_ext + Q_sunExt + Q_ir)
         return u_room, u_wall
@@ -109,8 +110,8 @@ if __name__ == "__main__":
     Wr = 0.5
     T_ext = 30
 
-    delta_t = 100
-    N = 15
+    delta_t = 60
+    N = 1500
     
     T_room = np.full(13, 20.)
     T_wall = np.full(13, 20.)
