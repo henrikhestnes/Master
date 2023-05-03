@@ -31,8 +31,8 @@ class Net(torch.nn.Module):
 
         self.act = torch.nn.ReLU()
 
-    def forward(self, T_rooms, T_wall, T_out, door, timing):
-        x = torch.cat((T_rooms, T_wall, T_out, door, timing), dim=1)
+    def forward(self, T_room, T_wall, T_out, door, timing):
+        x = torch.cat((T_room, T_wall, T_out, door, timing), dim=1)
         for i in range(len(self.linear_layers)-1):
             x = self.linear_layers[i](x.float())
             x = self.act(x)
