@@ -21,7 +21,8 @@ class Net(torch.nn.Module):
 
             #He initialization
             a = 1 if i == 0 else 2
-            layer.weight.data = torch.randn((n_out, n_in))*np.sqrt(a/n_in)
+            # layer.weight.data = torch.randn((n_out, n_in))*np.sqrt(a/n_in)
+            layer.weight.data = torch.zeros((n_out, n_in))
             layer.bias.data = torch.zeros(n_out)
 
             linear_layers.append(layer)
@@ -43,4 +44,4 @@ class Net(torch.nn.Module):
     def get_num_params(self):
         return sum(param.numel() for param in self.parameters())
 
-                    
+
