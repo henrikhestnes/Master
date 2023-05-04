@@ -21,8 +21,8 @@ class Net(torch.nn.Module):
 
             #He initialization
             a = 1 if i == 0 else 2
-            # layer.weight.data = torch.randn((n_out, n_in))*np.sqrt(a/n_in)
-            layer.weight.data = torch.zeros((n_out, n_in))
+            layer.weight.data = torch.randn((n_out, n_in))*np.sqrt(a/n_in)
+            # layer.weight.data = torch.zeros((n_out, n_in))
             layer.bias.data = torch.zeros(n_out)
 
             linear_layers.append(layer)
@@ -35,11 +35,10 @@ class Net(torch.nn.Module):
     def forward(self, T_room, T_wall, T_out, door, timing):
         x = torch.cat((T_room, T_wall, T_out, door, timing), dim=1)
         for i in range(len(self.linear_layers)-1):
-            x = self.linear_layers[i](x.float())
+            x = self.linear_layers[i](x)
             x = self.act(x)
         output_layer = self.linear_layers[-1]
-        output = output_layer(x)
-        return output.float()
+        return output_layer(x)
 
     def get_num_params(self):
         return sum(param.numel() for param in self.parameters())

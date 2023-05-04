@@ -1,6 +1,7 @@
 import torch
 import asset
 
+torch.set_default_dtype(torch.float32)
 
 def make_C_matrix(C_room, C_wall):
     C1, C2 = torch.diag(C_room/20), torch.diag(C_wall/20)
@@ -50,10 +51,10 @@ class thermoPBM(torch.nn.Module):
     def __init__(self, asset):
         super(thermoPBM, self).__init__()
         self.asset = asset
-        R_partwall = torch.tensor(asset.get_R_partWall())
-        R_internal = torch.tensor(asset.get_R())
+        R_partwall = torch.tensor(asset.get_R_partWall(), dtype=torch.float32)
+        R_internal = torch.tensor(asset.get_R(), dtype=torch.float32)
         C_room, C_wall = asset.get_C()
-        C_room, C_wall = torch.tensor(C_room), torch.tensor(C_wall)
+        C_room, C_wall = torch.tensor(C_room, dtype=torch.float32), torch.tensor(C_wall, dtype=torch.float32)
 
         self.R_ext = R_internal[0]
         self.R_outwall = R_internal[1]
@@ -78,9 +79,9 @@ class thermoPBM(torch.nn.Module):
         lhs_wall = self.C2 @ T_wall
         return lhs_room, lhs_wall
     
-    def calculate_T_dot(self, T_room, T_wall, u_room, u_wall, corrective_source_term=torch.zeros(1, 13)):
+    def calculate_T_dot(self, T_room, T_wall, u_room, u_wall, corrective_source_term=torch.zeros(13)):
         rhs_room, rhs_wall = self.calculate_rhs(T_room, T_wall, u_room, u_wall)
-        T_dot_room = torch.inverse(self.C1) @ (rhs_room + corrective_source_term[0])
+        T_dot_room = torch.inverse(self.C1) @ (rhs_room + corrective_source_term)
         T_dot_wall = torch.inverse(self.C2) @ rhs_wall
         return T_dot_room, T_dot_wall
     
@@ -90,13 +91,13 @@ class thermoPBM(torch.nn.Module):
         u_wall = torch.divide(self.k_2, self.R_room)*(Q_sunPen*Wr+Lr) + torch.divide(self.k_1, self.R_ext)*(self.R_ext*T_ext + Q_sunExt + Q_ir)
         return u_room.squeeze(), u_wall.squeeze()
     
-    def step(self, T_room, T_wall, u_room, u_wall, delta_t, corrective_source_term=torch.zeros(1, 13)):
-        T_dot_room, T_dot_wall = self.calculate_T_dot(T_room, T_wall, u_room, u_wall, corrective_source_term[0])
-        T_room_new = torch.add(T_room, delta_t * T_dot_room).float().requires_grad_(True)
-        T_wall_new = torch.add(T_wall, delta_t * T_dot_wall).float().requires_grad_(True)
+    def step(self, T_room, T_wall, u_room, u_wall, delta_t, corrective_source_term=torch.zeros(13)):
+        T_dot_room, T_dot_wall = self.calculate_T_dot(T_room, T_wall, u_room, u_wall, corrective_source_term)
+        T_room_new = torch.add(T_room, delta_t * T_dot_room).requires_grad_(True)
+        T_wall_new = torch.add(T_wall, delta_t * T_dot_wall).requires_grad_(True)
         return T_room_new, T_wall_new
     
-    def forward(self, T_room, T_wall, u_room, u_wall, delta_t, corrective_source_term=torch.zeros(1, 13)):
+    def forward(self, T_room, T_wall, u_room, u_wall, delta_t, corrective_source_term=torch.zeros(13)):
         return self.step(T_room, T_wall, u_room, u_wall, delta_t, corrective_source_term)
 
 
