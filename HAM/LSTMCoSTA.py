@@ -22,20 +22,20 @@ def pbm_temp_from_sensor(sensor_sample):
     return pbm_temp
 
 
-class FFCoSTA(nn.Module):
-    def __init__(self, PBM, FFNN, temp_scaler=None):
-        super(FFCoSTA, self).__init__()
+class LSTMCoSTA(nn.Module):
+    def __init__(self, PBM, LSTM, temp_scaler=None):
+        super(LSTMCoSTA, self).__init__()
         self.PBM = PBM
-        self.DDM = FFNN
+        self.DDM = LSTM
         self.temp_scaler = temp_scaler
     
-    def forward(self, T_room, T_wall, T_out, lstm_input, door, timing, N, delta_t):
+    def forward(self, T_room, T_wall, T_out, lstm_input, N, delta_t):
         T_room_new = T_room.clone().requires_grad_(True)
         T_wall_new = T_wall.clone().requires_grad_(True)
         for _ in range(N):
-            T_room_hat, T_wall_hat = self.PBM(T_room_new, T_wall_new, T_out, delta_t)
+            # T_room_hat, T_wall_hat = self.PBM(T_room_new, T_wall_new, T_out, delta_t)
 
-            corrective_source_term = self.DDM(T_room_hat, T_wall_hat, T_out, door, timing)
+            corrective_source_term = self.DDM(lstm_input)
 
             T_room_new, T_wall_new = self.PBM(T_room_new, T_wall_new, T_out, delta_t, corrective_source_term)
         
@@ -54,7 +54,7 @@ class FFCoSTA(nn.Module):
 
         for epoch in range(epochs):
             train_mae = 0
-            for i, (temp, label, lstm_input, warmup_temp, warmup_outdoor, outdoor, door, timing) in enumerate(train_loader):
+            for i, (temp, outdoor, label, lstm_input, warmup_temp, warmup_outdoor) in enumerate(train_loader):
                 optimizer.zero_grad()
                 T_room_warmup = pbm_temp_from_sensor(warmup_temp[:, 0, :])
                 T_wall_warmup = torch.zeros_like(T_room_warmup)
@@ -66,7 +66,7 @@ class FFCoSTA(nn.Module):
                 T_room = pbm_temp_from_sensor(temp).clone().requires_grad_(True)
                 T_wall = T_wall_warmup
 
-                T_room_new, T_wall_new = self(T_room, T_wall, outdoor, lstm_input, door, timing, N, delta_t)
+                T_room_new, T_wall_new = self(T_room, T_wall, outdoor, lstm_input, N, delta_t)
 
                 label_compare_indices = [0, 1, 2, 3, 4, 7, 8]
                 pbm_compare_indices = [0, 1, 10, 5, 6, 11, 12]
@@ -81,8 +81,8 @@ class FFCoSTA(nn.Module):
                 loss.backward()
                 optimizer.step()
 
-                # batch_mse = loss.item()
-                # print(f'Batch: {i+1}, Batch Train MSE: {batch_mse}')
+                batch_mse = loss.item()
+                print(f'Batch: {i+1}, Batch Train MSE: {batch_mse}')
                 train_mae += torch.mean(torch.abs(T_room_new[:, pbm_compare_indices] - label[:, label_compare_indices]))
             train_mae /= (i+1)
             print(f'Epoch: {epoch+1}, Epoch Train MAE: {train_mae}')
