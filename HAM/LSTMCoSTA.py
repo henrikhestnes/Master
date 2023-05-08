@@ -99,7 +99,7 @@ class LSTMCoSTA(nn.Module):
                 
                 for n in range(warmup_indoor.shape[1]):
                     for _ in range(N):
-                        T_room_warmup, T_wall_warmup = self.PBM(T_room_warmup, T_wall_warmup, warmup_outdoor[:, n].unsqueeze(1), delta_t)
+                        T_room_warmup, T_wall_warmup = self.PBM(T_room_warmup, T_wall_warmup, warmup_outdoor[:, n], delta_t)
 
                 T_room = pbm_temp_from_sensor(indoor_temp).clone()
                 T_wall = T_wall_warmup
