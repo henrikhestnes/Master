@@ -5,6 +5,7 @@ from torch import nn
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
 
+
 class Net(nn.Module):
     def __init__(self, input_size, hidden_size, output_shape, num_lstm_layers,
                  proj_size = 0,linear_layers=[], bidir=False):
