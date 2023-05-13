@@ -21,6 +21,20 @@ def pbm_temp_from_sensor(sensor_sample):
     pbm_temp[:, 12] = sensor_sample[:, 8] #f2Office
     return pbm_temp
 
+def sensor_temp_from_pbm(pbm_temp):
+    batch_size = pbm_temp.shape[0]
+    sensor_temp = torch.zeros((batch_size, 10))
+    sensor_temp[:, 0] = pbm_temp[:, 0] #gfBedroom
+    sensor_temp[:, 1] = pbm_temp[:, 1] #gfLivingroom
+    sensor_temp[:, 2] = pbm_temp[:, 9] #1fEntrance
+    sensor_temp[:, 3] = pbm_temp[:, 5] #1fGuestroom
+    sensor_temp[:, 4] = pbm_temp[:, 6] #1fMainroom
+    sensor_temp[:, 5] = pbm_temp[:, 11] #2fCooking
+    sensor_temp[:, 6] = pbm_temp[:, 11] #2fFireplace
+    sensor_temp[:, 7] = pbm_temp[:, 11] #2fLivingroom
+    sensor_temp[:, 8] = pbm_temp[:, 12] #2fOffice
+    sensor_temp[:, 9] = pbm_temp[:, 11] #2fStairs
+
 
 class LSTMCoSTA(nn.Module):
     def __init__(self, PBM, LSTM, temp_scaler=None):
