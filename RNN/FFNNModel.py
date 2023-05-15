@@ -51,6 +51,7 @@ class Net(torch.nn.Module):
             n_epochs: int,
             lr: float,
             l2_reg: float,
+            final_training: bool = False
     ) -> torch.nn.Module:
         criterion = torch.nn.BCELoss()
         optimizer = torch.optim.Adam(self.parameters(), lr = lr)
@@ -68,23 +69,24 @@ class Net(torch.nn.Module):
                 cost = batch_mse + l2_reg * reg_loss
                 cost.backward()
                 optimizer.step()
-            acc = 0
+            if not final_training:
+                acc = 0
+                for inputs, labels in val_loader:
+                    pred = self(inputs)
+                    acc += (pred.round() == labels).float().mean()
+                print(f'Epoch: {epoch + 1}: Val acc: {acc}')
+                
+                #Early stopping
+                if acc > best_acc:
+                    best_weights = copy.deepcopy(self.state_dict())
+                    i_since_last_update = 0
+                    best_acc = acc
+                else:
+                    i_since_last_update += 1
 
-            for inputs, labels in val_loader:
-                pred = self(inputs)
-                acc += (pred.round() == labels).float().mean()
-            print(f'Epoch: {epoch + 1}: Val acc: {acc}')
-            
-            #Early stopping
-            if acc > best_acc:
-                best_weights = copy.deepcopy(self.state_dict())
-                i_since_last_update = 0
-                best_acc = acc
-            else:
-                i_since_last_update += 1
-
-            if i_since_last_update > patience:
-                print(f"Stopping early with acc={best_acc}")
-                break
-        self.load_state_dict(best_weights)
+                if i_since_last_update > patience:
+                    print(f"Stopping early with acc={best_acc}")
+                    break
+        if not final_training:
+            self.load_state_dict(best_weights)
                     

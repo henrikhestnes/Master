@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 
 class Net(nn.Module):
     def __init__(self, input_size, hidden_size, output_shape, num_lstm_layers,
-                 proj_size = 0,linear_layers=[], bidir=False, x_dot_label=False):
+                 proj_size = 0,linear_layers=[], bidir=False):
         super(Net, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
@@ -17,7 +17,6 @@ class Net(nn.Module):
         self.output_size = np.prod(output_shape)
         self.num_lstm_layers = num_lstm_layers
         self.proj_size = proj_size
-        self.x_dot_label = x_dot_label
         self.bidir = bidir
 
         self.lstm = nn.LSTM(input_size=input_size, hidden_size=hidden_size, num_layers=num_lstm_layers,
@@ -69,7 +68,7 @@ class Net(nn.Module):
             n_epochs: int,
             lr: float,
             l1_reg: float,
-            y_scaler = None
+            final_training: bool = False
     ) -> torch.nn.Module:
         criterion = torch.nn.MSELoss()
         optimizer = torch.optim.Adam(self.parameters(), lr = lr)
@@ -79,7 +78,11 @@ class Net(nn.Module):
 
         for epoch in range(n_epochs):
             train_loss = 0
-            for i, (inputs, targets) in enumerate(train_data):
+            for i, (data) in enumerate(train_data):
+                if len(data) == 4:
+                    inputs, targets, true_input, true_target = data
+                else:
+                    inputs, targets = data
                 optimizer.zero_grad()
                 outputs = self(inputs)
 
@@ -93,37 +96,40 @@ class Net(nn.Module):
                 train_loss += cost.item()
             print(f'Epoch: {epoch+1}, Train loss: {train_loss/i}')
 
-            rf_mae_val = 0
+            if not final_training:
+                rf_mae_val = 0
 
-            steps_per_pred = 8
-            preds_per_day = 12
-            num_preds = 10
+                steps_per_pred = 8
+                preds_per_day = 12
+                num_preds = 10
 
-            np.random.seed(420)
-            eval_windows_index = np.random.choice(range(0, len(val_windows)-preds_per_day*steps_per_pred-1), num_preds)
-            for i, start_index in enumerate(eval_windows_index):
-                start_window = val_windows[start_index][0]
-                future_window = val_windows[start_index+1:start_index+steps_per_pred*preds_per_day+1]
-                prediction, ground_truth = _rolling_forecast(self, door_model, start_window, future_window, preds_per_day, steps_per_pred, self.x_dot_label, y_scaler)
-                rf_mae_val += np.mean(np.abs(ground_truth-prediction))
-            rf_mae_val /= num_preds
+                np.random.seed(420)
+                eval_windows_index = np.random.choice(range(0, len(val_windows)-preds_per_day*steps_per_pred-1), num_preds)
+                for i, start_index in enumerate(eval_windows_index):
+                    start_window = val_windows[start_index][0]
+                    future_window = val_windows[start_index+1:start_index+steps_per_pred*preds_per_day+1]
+                    prediction, ground_truth = _rolling_forecast(self, door_model, start_window, future_window, preds_per_day, steps_per_pred)
+                    rf_mae_val += np.mean(np.abs(ground_truth-prediction))
+                rf_mae_val /= num_preds
 
-            print(f'Epoch: {epoch+1}: Val RF MAE: {rf_mae_val}')
+                print(f'Epoch: {epoch+1}: Val RF MAE: {rf_mae_val}')
 
-            #Early stopping
-            if rf_mae_val < best_mse:
-                best_weights = copy.deepcopy(self.state_dict())
-                i_since_last_update = 0
-                best_mse = rf_mae_val
-            else:
-                i_since_last_update += 1
+                #Early stopping
+                if rf_mae_val < best_mse:
+                    best_weights = copy.deepcopy(self.state_dict())
+                    i_since_last_update = 0
+                    best_mse = rf_mae_val
+                else:
+                    i_since_last_update += 1
 
-            if i_since_last_update > patience:
-                print(f"Stopping early with mse={best_mse}")
-                break
-        self.load_state_dict(best_weights)
+                if i_since_last_update > patience:
+                    print(f"Stopping early with mse={best_mse}")
+                    break
+        
+        if not final_training:
+            self.load_state_dict(best_weights)
 
-def _rolling_forecast(model, door_model, start_window, future_windows, steps, timesteps_per_step, x_dot_label, y_scaler = None):
+def _rolling_forecast(model, door_model, start_window, future_windows, steps, timesteps_per_step):
     temp_indices = [1, 2, 4, 5, 6, 9, 11, 12, 13, 15]
     cols_to_update_indices = [8, 16, 17, 18, 19, 20, 21]
     door_indices = [0, 3, 7, 10, 14]
@@ -140,11 +146,7 @@ def _rolling_forecast(model, door_model, start_window, future_windows, steps, ti
         n_temp = current_window[-1][temp_indices].clone()
         # for label_index, window_index in enumerate(temp_indices):
         for n, row in enumerate(next_pred[0]):
-            if x_dot_label:
-                n_temp += torch.tensor(y_scaler.inverse_transform(row.detach().reshape(1, -1)).squeeze())
-                next_state[n, temp_indices] = n_temp
-            else:
-                next_state[n, temp_indices] = row
+            next_state[n, temp_indices] = row
         
         for window_index in cols_to_update_indices:
             for n in range(timesteps_per_step):
@@ -161,6 +163,7 @@ def _rolling_forecast(model, door_model, start_window, future_windows, steps, ti
                 next_state[n][window_index] = door_pred[n][door_index]
         current_window = torch.roll(current_window, -timesteps_per_step, dims=0)
         current_window[-timesteps_per_step:] = next_state
+
         predictions.append(next_state[:, temp_indices].detach().numpy())
         ground_truth.append(future_windows[timesteps_per_step*i][0][-timesteps_per_step:, temp_indices].detach().numpy())
     

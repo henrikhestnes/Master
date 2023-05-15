@@ -3,23 +3,27 @@ from torch.utils.data import Dataset
 import pandas as pd
 
 class WindowGenerator(Dataset):
-    def __init__(self, sequence_width, label_width, shift, x_dot_label):
+    def __init__(self, sequence_width, label_width, shift):
         self.sequence_width = int(sequence_width)
         self.label_width = int(label_width)
         self.shift = int(shift)
         self.data = []
-        self.x_dot_label = x_dot_label
 
-    def add_data(self, df, label_columns):
-        if not self.x_dot_label:
-            labels = df.loc[:, label_columns]
+    def add_data(self, df, label_columns, df_not_scaled = None):
+        labels = df.loc[:, label_columns]
+        not_scaled_labels = df_not_scaled.loc[:, label_columns]
         for i in range(len(df) - (self.sequence_width + self.label_width + self.shift)):
             sequence = df.iloc[i:i+self.sequence_width]
-            if self.x_dot_label:
-                label = label_columns.iloc[i+self.shift+self.sequence_width-1:i+self.shift+self.sequence_width+self.label_width-1]
+            label = labels.iloc[i+self.shift+self.sequence_width:i+self.shift+self.sequence_width+self.label_width]
+            if df_not_scaled is not None:
+                not_scaled_sequence = df_not_scaled.iloc[i:i+self.sequence_width]
+                not_scaled_label = not_scaled_labels.iloc[i+self.shift+self.sequence_width:i+self.shift+self.sequence_width+self.label_width]
+                self.data.append((torch.tensor(sequence.values, dtype=torch.float),
+                              torch.tensor(label.values, dtype=torch.float),
+                              torch.tensor(not_scaled_sequence.values, dtype=torch.float),
+                              torch.tensor(not_scaled_label.values, dtype=torch.float)))
             else:
-                label = labels.iloc[i+self.shift+self.sequence_width:i+self.shift+self.sequence_width+self.label_width]
-            self.data.append((torch.tensor(sequence.values, dtype=torch.float),
+                self.data.append((torch.tensor(sequence.values, dtype=torch.float),
                               torch.tensor(label.values, dtype=torch.float)))
 
         # Work out the label column indices.
