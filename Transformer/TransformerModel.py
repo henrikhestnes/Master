@@ -100,7 +100,7 @@ class Transformer(nn.Module):
         for epoch in range(n_epochs):
             train_mse = 0
             for data in train_loader:
-                if len(data) == 5:
+                if len(data) == 4:
                     src, tgt, pos_enc, label = data
                 else:
                     src, tgt, pos_enc, label, _ = data
@@ -148,7 +148,7 @@ class Transformer(nn.Module):
                 if i_since_last_update > patience:
                     print(f"Stopping early with mse={best_mae}")
                     break
-        if not final_training
+        if not final_training:
             self.load_state_dict(best_weights)
 
 
