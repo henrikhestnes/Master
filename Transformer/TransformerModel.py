@@ -99,7 +99,12 @@ class Transformer(nn.Module):
 
         for epoch in range(n_epochs):
             train_mse = 0
-            for src, tgt, pos_enc, label in train_loader:
+            for data in train_loader:
+                if len(data) == 5:
+                    src, tgt, pos_enc, label = data
+                else:
+                    src, tgt, pos_enc, label, _ = data
+                    
                 optimizer.zero_grad()
 
                 prediction = self(src, tgt, pos_enc)

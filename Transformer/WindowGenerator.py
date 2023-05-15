@@ -9,7 +9,7 @@ class WindowGenerator(Dataset):
         self.shift = int(shift)
         self.data = []
 
-    def add_data(self, data, positional_encoding, label_columns):
+    def add_data(self, data, positional_encoding, label_columns, data_not_scaled = None):
         positional_encoding = positional_encoding.loc[data.index]
         labels = data.loc[:, label_columns]
         for i in range(len(data) - (self.sequence_width + self.label_width + self.shift)):
@@ -19,8 +19,14 @@ class WindowGenerator(Dataset):
             tgt = labels.iloc[i+self.shift+self.sequence_width-1:i+self.shift+self.sequence_width+self.label_width-1]
             label = labels.iloc[i+self.shift+self.sequence_width:i+self.shift+self.sequence_width+self.label_width]
             # assert all(src.loc[:, label_columns].values[-1] == tgt.values[0])
-            self.data.append((torch.tensor(src.values, dtype=torch.float), torch.tensor(tgt.values, dtype=torch.float),
-                              torch.tensor(pos.values, dtype=torch.float), torch.tensor(label.values, dtype=torch.float)))
+            if data_not_scaled is not None:
+                not_scaled_src = data_not_scaled.iloc[i:i+self.sequence_width]
+                self.data.append((torch.tensor(src.values, dtype=torch.float), torch.tensor(tgt.values, dtype=torch.float),
+                                  torch.tensor(pos.values, dtype=torch.float), torch.tensor(label.values, dtype=torch.float),
+                                  torch.tensor(not_scaled_src.values, dtype=torch.float)))
+            else:
+                self.data.append((torch.tensor(src.values, dtype=torch.float), torch.tensor(tgt.values, dtype=torch.float),
+                                  torch.tensor(pos.values, dtype=torch.float), torch.tensor(label.values, dtype=torch.float)))
 
 
     def __getitem__(self, index):
