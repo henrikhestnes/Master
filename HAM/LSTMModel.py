@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 
 class Net(nn.Module):
     def __init__(self, input_size, hidden_size, output_shape, num_lstm_layers,
-                 proj_size = 0,linear_layers=[], bidir=False):
+                 proj_size = 0,linear_layers=[], bidir=False, dropout_p=0.0):
         super(Net, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
@@ -17,6 +17,8 @@ class Net(nn.Module):
         self.num_lstm_layers = num_lstm_layers
         self.proj_size = proj_size
         self.bidir = bidir
+        self.dropout_p = dropout_p
+        self.dropout_layer = nn.Dropout(p=self.dropout_p)
 
         self.lstm = nn.LSTM(input_size=input_size, hidden_size=hidden_size, num_layers=num_lstm_layers,
                             batch_first=True, proj_size=proj_size, bidirectional=bidir)
@@ -54,7 +56,9 @@ class Net(nn.Module):
         output, (hn, cn) = self.lstm(input_seq, (h_0, c_0))
 
         x = torch.cat((hn[-1], T_room_hat, T_wall_hat), dim=1)
-        for layer in self.linear_layers:
+        for i in range(len(self.linear_layers) - 1):
+            x = self.linear_layers[i](x)
             x = self.act(x)
-            x = layer(x)
+            x = self.dropout_layer(x)
+        x = self.linear_layers[-1](x)
         return x
