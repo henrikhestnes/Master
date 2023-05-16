@@ -64,7 +64,7 @@ class Transformer(nn.Module):
             tgt = src[:, -1, label_indices].unsqueeze(1)
             for _ in range(forecast_window-1):
                 pred = self(src, tgt, pos_enc)
-                tgt = torch.cat((tgt, pred[:, -1, :].unsqueeze(1).detach()), dim=1)
+                tgt = torch.cat((tgt, pred[:, -1, :].unsqueeze(1)), dim=1)
             final_pred = self(src, tgt, pos_enc)
             self.train()
         return final_pred

@@ -53,7 +53,7 @@ class Asset:
 
             zone_C = zone.get_C()
             self.C_room[i] = zone_C[0]
-            self.C_wall[i] = zone_C[0]
+            self.C_wall[i] = zone_C[1]
         
         self.R_partWall = np.zeros((len(zones), len(zones)))
         self.C_partWall = np.zeros((len(zones), len(zones)))

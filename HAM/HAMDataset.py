@@ -31,7 +31,7 @@ class Dataset(Dataset):
             timing = timing_data.iloc[i+self.warmup_width:i+self.warmup_width+self.label_width]
             label = indoor_temp_data.iloc[i+self.warmup_width+1:i+self.warmup_width+self.label_width+1]
             if self.is_lstm:
-                lstm_input = df.iloc[i+1:i+self.warmup_width+1]
+                lstm_input = df.iloc[i:i+self.warmup_width+1]
                 self.data.append((torch.tensor(warmup_indoor_temp.values, dtype=torch.float32),
                               torch.tensor(warmup_outdoor_temp.values, dtype=torch.float32), 
                               torch.tensor(indoor_temp.values, dtype=torch.float32),
