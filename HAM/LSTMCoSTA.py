@@ -45,15 +45,15 @@ class LSTMCoSTA(nn.Module):
     
     def forward(self, T_room, T_wall, T_out, lstm_input, N, delta_t, num_preds):
         for i in range(num_preds):
-            T_room_new = T_room.clone().requires_grad_(True).repeat(num_preds, 1, 1)
-            T_wall_new = T_wall.clone().requires_grad_(True).repeat(num_preds, 1, 1)
+            T_room_new = T_room.clone().requires_grad_(True)
+            T_wall_new = T_wall.clone().requires_grad_(True)
             T_out_i = T_out[:, i].unsqueeze(1)
             for _ in range(N):
-                T_room_hat, T_wall_hat = self.PBM(T_room_new[i], T_wall_new[i], T_out_i, delta_t)
+                T_room_hat, T_wall_hat = self.PBM(T_room_new, T_wall_new, T_out_i, delta_t)
 
                 corrective_source_term = self.DDM(lstm_input, T_room_hat, T_wall_hat)
 
-                T_room_new[i], T_wall_new[i] = self.PBM(T_room_new[i], T_wall_new[i], T_out_i, delta_t, corrective_source_term)
+                T_room_new, T_wall_new = self.PBM(T_room_new, T_wall_new, T_out_i, delta_t, corrective_source_term)
         
         return T_room_new, T_wall_new
     
@@ -87,10 +87,8 @@ class LSTMCoSTA(nn.Module):
 
                 label_compare_indices = [0, 1, 2, 3, 4, 7, 8]
                 pbm_compare_indices = [0, 1, 10, 5, 6, 11, 12]
-                
-                labels = torch.swapaxes(labels, 0, 1)
 
-                batch_mse = criterion(T_room_new[:, :, pbm_compare_indices], labels[:, :, label_compare_indices])
+                batch_mse = criterion(T_room_new[:, pbm_compare_indices], labels[:, -1, label_compare_indices])
 
                 reg_loss = 0
                 for param in self.parameters():
@@ -101,8 +99,8 @@ class LSTMCoSTA(nn.Module):
                 optimizer.step()
 
                 batch_mse = loss.item()
-                print(f'Batch: {i+1}, Batch Train MSE: {batch_mse}')
-                train_mae += torch.mean(torch.abs(T_room_new[:, :, pbm_compare_indices] - labels[:, :, label_compare_indices]))
+                # print(f'Batch: {i+1}, Batch Train MSE: {batch_mse}')
+                train_mae += torch.mean(torch.abs(T_room_new[:, pbm_compare_indices] - labels[:, -1, label_compare_indices]))
             train_mae /= (i+1)
             print(f'Epoch: {epoch+1}, Epoch Train MAE: {train_mae}')
 
@@ -124,9 +122,7 @@ class LSTMCoSTA(nn.Module):
                 label_compare_indices = [0, 1, 2, 3, 4, 7, 8]
                 pbm_compare_indices = [0, 1, 10, 5, 6, 11, 12]
 
-                labels = torch.swapaxes(labels, 0, 1)
-
-                val_mae  += torch.mean(torch.abs(T_room_new[:, :, pbm_compare_indices] - labels[:, :, label_compare_indices]))
+                val_mae  += torch.mean(torch.abs(T_room_new[:, pbm_compare_indices] - labels[:, -1, label_compare_indices]))
             
             val_mae /= (i+1)
             print(f'Epoch: {epoch+1}, Val MAE: {val_mae}')
