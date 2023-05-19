@@ -22,6 +22,9 @@ class Net(nn.Module):
 
         self.lstm = nn.LSTM(input_size=input_size, hidden_size=hidden_size, num_layers=num_lstm_layers,
                             batch_first=True, proj_size=proj_size, bidirectional=bidir)
+        
+        self.norm_layer = nn.LayerNorm(hidden_size + 26)
+
         if linear_layers == []:
             self.linear_layers = [nn.Linear(hidden_size + 26, self.output_size)]
         else:
@@ -56,6 +59,7 @@ class Net(nn.Module):
         output, (hn, cn) = self.lstm(input_seq, (h_0, c_0))
 
         x = torch.cat((hn[-1], T_room_hat, T_wall_hat), dim=1)
+        x = self.norm_layer(x)
         for i in range(len(self.linear_layers) - 1):
             x = self.linear_layers[i](x)
             x = self.act(x)
