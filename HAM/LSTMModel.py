@@ -30,7 +30,8 @@ class Net(nn.Module):
         else:
             #He initialization
             first_layer = nn.Linear(hidden_size + 26, linear_layers[0])
-            first_layer.weight.data = torch.randn((hidden_size+26, linear_layers[0]))*np.sqrt(1/hidden_size)
+            # first_layer.weight.data = torch.randn((hidden_size+26, linear_layers[0]))*np.sqrt(1/hidden_size)
+            first_layer.weight.data = torch.zeros((hidden_size+26, linear_layers[0]))
             first_layer.bias.data = torch.zeros(linear_layers[0])
             self.linear_layers = [first_layer]
 
@@ -39,7 +40,8 @@ class Net(nn.Module):
                 n_out = linear_layers[i+1]
                 layer = torch.nn.Linear(n_in, n_out)
 
-                layer.weight.data = torch.randn((n_out, n_in))*np.sqrt(2/n_in)
+                # layer.weight.data = torch.randn((n_out, n_in))*np.sqrt(2/n_in)
+                layer.weight.data = torch.zeros((n_out, n_in))
                 layer.bias.data = torch.zeros(n_out)
                 self.linear_layers.append(layer)
             
