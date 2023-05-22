@@ -69,34 +69,35 @@ class thermoPBM(torch.nn.Module):
         self.E, self.F = make_E_F_matrices(R_internal)
         self.G = make_G_matrix(R_internal)
 
-    def calculate_rhs(self, T_room, T_wall, T_ext, corrective_source_term=torch.zeros(1, 26)):
-        u_room, u_wall = self.calculate_U(T_ext)
+    def calculate_rhs(self, T_room, T_wall, T_ext, radiation, corrective_source_term=torch.zeros(1, 26)):
+        u_room, u_wall = self.calculate_U(T_ext, radiation)
         rhs_room = torch.matmul(self.D, T_room.T) + torch.matmul(self.E, T_wall.T) + u_room.T + corrective_source_term[:, :13].T
         rhs_wall = torch.matmul(self.F, T_room.T) + torch.matmul(self.G, T_wall.T) + u_wall.T + corrective_source_term[:, 13:].T
         return rhs_room, rhs_wall
     
-    def calculate_T_dot(self, T_room, T_wall, T_ext, corrective_source_term=torch.zeros(1, 26)):
-        rhs_room, rhs_wall = self.calculate_rhs(T_room, T_wall, T_ext, corrective_source_term)
+    def calculate_T_dot(self, T_room, T_wall, T_ext, radiation, corrective_source_term=torch.zeros(1, 26)):
+        rhs_room, rhs_wall = self.calculate_rhs(T_room, T_wall, T_ext, radiation, corrective_source_term)
         T_dot_room = torch.matmul(torch.inverse(self.C1), rhs_room)
         T_dot_wall = torch.matmul(torch.inverse(self.C2), rhs_wall)
         return T_dot_room, T_dot_wall
     
-    def calculate_U(self, T_ext, Q_sunExt=torch.zeros(1, 13), Q_sunPen=torch.zeros(1, 13), Q_ir=torch.zeros(1, 13),
+    def calculate_U(self, T_ext, radiation, Q_sunExt=torch.zeros(1, 13), Q_sunPen=torch.zeros(1, 13), Q_ir=torch.zeros(1, 13),
                     Ww=0.5, Lr=torch.zeros(1, 13), Wr=0.5, Lc=torch.zeros(1, 13), H=torch.zeros(1, 13), C=torch.zeros(1, 13)):
-        # u_room = torch.divide(self.k_2, self.R_inWall)*(Q_sunPen*Ww+Lr) + Q_sunPen*Wr+Lc+H-C
+        Q_sunExt = radiation*0.6
+        Q_sunPen = radiation*0.4
+        u_room = torch.divide(self.k_2, self.R_inWall)*(Q_sunPen*Ww+Lr) + Q_sunPen*Wr+Lc+H-C
         u_wall = torch.divide(self.k_2, self.R_room)*(Q_sunPen*Wr+Lr) + torch.divide(self.k_1, self.R_ext)*(self.R_ext*T_ext + Q_sunExt + Q_ir)
-        u_room = torch.full_like(u_wall, 9.)
-        u_room[:, 11] = 30.
+        u_room += 10
         return u_room, u_wall
     
-    def step(self, T_room, T_wall, T_ext, delta_t, corrective_source_term=torch.zeros(1, 26)):
-        T_dot_room, T_dot_wall = self.calculate_T_dot(T_room, T_wall, T_ext, corrective_source_term)
+    def step(self, T_room, T_wall, T_ext, radiation, delta_t, corrective_source_term=torch.zeros(1, 26)):
+        T_dot_room, T_dot_wall = self.calculate_T_dot(T_room, T_wall, T_ext, radiation, corrective_source_term)
         T_room_new = torch.add(T_room, delta_t * T_dot_room.T).requires_grad_(True)
         T_wall_new = torch.add(T_wall, delta_t * T_dot_wall.T).requires_grad_(True)
         return T_room_new, T_wall_new
     
-    def forward(self, T_room, T_wall, T_ext, delta_t, corrective_source_term=torch.zeros(1, 26)):
-        return self.step(T_room, T_wall, T_ext, delta_t, corrective_source_term)
+    def forward(self, T_room, T_wall, T_ext, radiation = 0, delta_t=60, corrective_source_term=torch.zeros(1, 26)):
+        return self.step(T_room, T_wall, T_ext, radiation, delta_t, corrective_source_term)
 
 
 if __name__ == "__main__":

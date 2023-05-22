@@ -43,17 +43,18 @@ class LSTMCoSTA(nn.Module):
         self.DDM = LSTM
         self.temp_scaler = temp_scaler
     
-    def forward(self, T_room, T_wall, T_out, lstm_input, N, delta_t, num_preds):
+    def forward(self, T_room, T_wall, T_out, radiation, lstm_input, N, delta_t, num_preds):
         for i in range(num_preds):
             T_room_new = T_room.clone().requires_grad_(True)
             T_wall_new = T_wall.clone().requires_grad_(True)
             T_out_i = T_out[:, i].unsqueeze(1)
+            radiation_i = radiation[:, i].unsqueeze(1)
             for _ in range(N):
-                T_room_hat, T_wall_hat = self.PBM(T_room_new, T_wall_new, T_out_i, delta_t)
+                T_room_hat, T_wall_hat = self.PBM(T_room_new, T_wall_new, T_out_i, radiation_i, delta_t)
 
                 corrective_source_term = self.DDM(lstm_input, T_room_hat, T_wall_hat)
 
-                T_room_new, T_wall_new = self.PBM(T_room_new, T_wall_new, T_out_i, delta_t, corrective_source_term)
+                T_room_new, T_wall_new = self.PBM(T_room_new, T_wall_new, T_out_i, radiation_i, delta_t, corrective_source_term)
         
         return T_room_new, T_wall_new
     
@@ -70,20 +71,20 @@ class LSTMCoSTA(nn.Module):
 
         for epoch in range(epochs):
             train_mae = 0
-            for i, (warmup_indoor, warmup_outdoor, indoor_temp, outdoor_temp, door, timing, labels, lstm_input) in enumerate(train_loader):
+            for i, (warmup_indoor, warmup_outdoor, warmup_radiation, indoor_temp, outdoor_temp, radiation, door, timing, labels, lstm_input) in enumerate(train_loader):
                 optimizer.zero_grad()
                 T_room_warmup = pbm_temp_from_sensor(warmup_indoor[:, 0, :])
                 T_wall_warmup = torch.zeros_like(T_room_warmup)
                 
                 for n in range(warmup_indoor.shape[1]):
                     for _ in range(N):
-                        T_room_warmup, T_wall_warmup = self.PBM(T_room_warmup, T_wall_warmup, warmup_outdoor[:, n], delta_t)
+                        T_room_warmup, T_wall_warmup = self.PBM(T_room_warmup, T_wall_warmup, warmup_outdoor[:, n], warmup_radiation[:, n], delta_t)
 
                 T_room = pbm_temp_from_sensor(indoor_temp).clone().requires_grad_(True)
                 T_wall = T_wall_warmup
 
                 num_preds = labels.shape[1]
-                T_room_new, T_wall_new = self(T_room, T_wall, outdoor_temp, lstm_input, N, delta_t, num_preds)
+                T_room_new, T_wall_new = self(T_room, T_wall, outdoor_temp, radiation, lstm_input, N, delta_t, num_preds)
 
                 label_compare_indices = [0, 1, 2, 3, 4, 7, 8]
                 pbm_compare_indices = [0, 1, 10, 5, 6, 11, 12]
@@ -99,25 +100,25 @@ class LSTMCoSTA(nn.Module):
                 optimizer.step()
 
                 batch_mse = loss.item()
-                # print(f'Batch: {i+1}, Batch Train MSE: {batch_mse}')
+                print(f'Batch: {i+1}, Batch Train MSE: {batch_mse}')
                 train_mae += torch.mean(torch.abs(T_room_new[:, pbm_compare_indices] - labels[:, -1, label_compare_indices]))
             train_mae /= (i+1)
             print(f'Epoch: {epoch+1}, Epoch Train MAE: {train_mae}')
 
             val_mae = 0
-            for i, (warmup_indoor, warmup_outdoor, indoor_temp, outdoor_temp, door, timing, labels, lstm_input) in enumerate(val_loader):
+            for i, (warmup_indoor, warmup_outdoor, warmup_radiation, indoor_temp, outdoor_temp, radiation, door, timing, labels, lstm_input) in enumerate(val_loader):
                 T_room_warmup = pbm_temp_from_sensor(warmup_indoor[:, 0, :])
                 T_wall_warmup = torch.zeros_like(T_room_warmup)
                 
                 for n in range(warmup_indoor.shape[1]):
                     for _ in range(N):
-                        T_room_warmup, T_wall_warmup = self.PBM(T_room_warmup, T_wall_warmup, warmup_outdoor[:, n], delta_t)
+                        T_room_warmup, T_wall_warmup = self.PBM(T_room_warmup, T_wall_warmup, warmup_outdoor[:, n], warmup_radiation[:, n], delta_t)
 
                 T_room = pbm_temp_from_sensor(indoor_temp).clone()
                 T_wall = T_wall_warmup
 
                 num_preds = labels.shape[1]
-                T_room_new, T_wall_new = self(T_room, T_wall, outdoor_temp, lstm_input, N, delta_t, num_preds)
+                T_room_new, T_wall_new = self(T_room, T_wall, outdoor_temp, radiation, lstm_input, N, delta_t, num_preds)
 
                 label_compare_indices = [0, 1, 2, 3, 4, 7, 8]
                 pbm_compare_indices = [0, 1, 10, 5, 6, 11, 12]
