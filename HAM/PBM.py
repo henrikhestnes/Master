@@ -4,7 +4,7 @@ import asset
 torch.set_default_dtype(torch.float32)
 
 def make_C_matrix(C_room, C_wall):
-    C1, C2 = torch.diag(C_room/20), torch.diag(C_wall/20)
+    C1, C2 = torch.diag(C_room), torch.diag(C_wall)
     return C1, C2
 
 def make_D_matrix(R_internal, R_partWall):

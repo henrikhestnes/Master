@@ -4,7 +4,7 @@ import pandas as pd
 
 class Dataset(Dataset):
     def __init__(self, label_width, warmup_width, indoor_temp_columns, outdoor_temp_columns, 
-                 radiation_column, door_columns, timing_columns, is_lstm=False, x_scaler=None):
+                 radiation_column, door_columns, timing_columns, is_lstm=False, x_scaler=None, label_scaler=None):
         self.label_width = int(label_width)
         self.warmup_width = int(warmup_width)
         self.indoor_temp_columns = indoor_temp_columns
@@ -14,6 +14,7 @@ class Dataset(Dataset):
         self.timing_columns = timing_columns
         self.is_lstm = is_lstm
         self.x_scaler = x_scaler
+        self.label_scaler = label_scaler
         self.data = []
 
     def add_data(self, df):
