@@ -37,11 +37,11 @@ def sensor_temp_from_pbm(pbm_temp):
 
 
 class LSTMCoSTA(nn.Module):
-    def __init__(self, PBM, LSTM, temp_scaler=None):
+    def __init__(self, PBM, LSTM, pbm_scaler=None):
         super(LSTMCoSTA, self).__init__()
         self.PBM = PBM
         self.DDM = LSTM
-        self.temp_scaler = temp_scaler
+        self.pbm_scaler = pbm_scaler
     
     def forward(self, T_room, T_wall, T_out, radiation, lstm_input, N, delta_t, num_preds):
         for i in range(num_preds):
@@ -52,13 +52,17 @@ class LSTMCoSTA(nn.Module):
             for _ in range(N):
                 T_room_hat, T_wall_hat = self.PBM(T_room_new, T_wall_new, T_out_i, radiation_i, delta_t)
 
-                corrective_source_term = self.DDM(lstm_input, T_room_hat, T_wall_hat)
+                T_hat_scaled = self.pbm_scaler.transform(torch.concat((T_room_hat.squeeze(), T_wall_hat.squeeze()), axis=1).detach())
+                T_room_hat_scaled = torch.tensor(T_hat_scaled[:, :13], dtype=torch.float32, requires_grad=True)
+                T_wall_hat_scaled = torch.tensor(T_hat_scaled[:, 13:], dtype=torch.float32, requires_grad=True)
+
+                corrective_source_term = self.DDM(lstm_input, T_room_hat_scaled, T_wall_hat_scaled)
 
                 T_room_new, T_wall_new = self.PBM(T_room_new, T_wall_new, T_out_i, radiation_i, delta_t, corrective_source_term)
         
         return T_room_new, T_wall_new
     
-    def train(self, train_loader, val_loader, epochs, lr, l2_reg):
+    def do_train(self, train_loader, val_loader, epochs, lr, l2_reg):
         criterion = nn.MSELoss()
         optimizer = optim.Adam(self.parameters(), lr = lr)
 
