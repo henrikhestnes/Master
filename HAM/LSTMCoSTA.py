@@ -52,7 +52,7 @@ class LSTMCoSTA(nn.Module):
             for _ in range(N):
                 T_room_hat, T_wall_hat = self.PBM(T_room_new, T_wall_new, T_out_i, radiation_i, delta_t)
 
-                T_hat_scaled = self.pbm_scaler.transform(torch.concat((T_room_hat.squeeze(), T_wall_hat.squeeze()), axis=1).detach())
+                T_hat_scaled = self.pbm_scaler.transform(torch.concat((T_room_hat, T_wall_hat), axis=1).detach())
                 T_room_hat_scaled = torch.tensor(T_hat_scaled[:, :13], dtype=torch.float32, requires_grad=True)
                 T_wall_hat_scaled = torch.tensor(T_hat_scaled[:, 13:], dtype=torch.float32, requires_grad=True)
 

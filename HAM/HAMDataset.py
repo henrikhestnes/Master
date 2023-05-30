@@ -46,7 +46,7 @@ class Dataset(Dataset):
                               torch.tensor(radiation.values.flatten(), dtype=torch.float32),
                               torch.tensor(door.values, dtype=torch.float32),
                               torch.tensor(timing.values, dtype=torch.float32),
-                              torch.tensor(label, dtype=torch.float32),
+                              torch.tensor(label.values, dtype=torch.float32),
                               torch.tensor(self.x_scaler.transform(lstm_input), dtype=torch.float32)))
             else:
                 self.data.append((torch.tensor(warmup_indoor_temp.values, dtype=torch.float32),
