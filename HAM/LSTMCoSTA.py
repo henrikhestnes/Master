@@ -104,7 +104,7 @@ class LSTMCoSTA(nn.Module):
                 optimizer.step()
 
                 batch_mse = loss.item()
-                print(f'Batch: {i+1}, Batch Train MSE: {batch_mse}')
+                # print(f'Batch: {i+1}, Batch Train MSE: {batch_mse}')
                 train_mae += torch.mean(torch.abs(T_room_new[:, pbm_compare_indices] - labels[:, -1, label_compare_indices]))
             train_mae /= (i+1)
             print(f'Epoch: {epoch+1}, Epoch Train MAE: {train_mae}')
